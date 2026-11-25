@@ -1,0 +1,22 @@
+# Ejecución local: api (Node) + voz (Python/Pipecat). El webhook de Meta entra por ngrok a la api:
+#   docker compose up --build      y en otra terminal:      ngrok http 8080
+services:
+  api:
+    build: .
+    env_file: .env
+    environment:
+      VOZ_URL: http://voz:7860
+    ports:
+      - "8080:8080"
+
+  voz:
+    build: ./voz
+    env_file: .env
+    environment:
+      BACKEND_URL: http://api:8080
+    ports:
+      - "7860:7860"
+    # WebRTC usa UDP en puertos aleatorios. En Linux, si la llamada desde el navegador no conecta,
+    # descomenta la siguiente línea, quita "ports" y usa BACKEND_URL=http://localhost:8080;
+    # en Mac/Windows corre voz sin Docker (ver README).
+    # network_mode: host

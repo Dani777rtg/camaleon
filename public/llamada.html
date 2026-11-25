@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Llamar a Camaleón</title>
+<style>
+  body { font-family: system-ui, sans-serif; background: #0f1a14; color: #e8f5ec; display: grid; place-items: center; min-height: 100vh; margin: 0; }
+  main { text-align: center; padding: 2rem; max-width: 22rem; }
+  button { width: 9rem; height: 9rem; border-radius: 50%; border: 0; font-size: 1.2rem; font-weight: 600; cursor: pointer; background: #2fb36b; color: #fff; }
+  button.activa { background: #d9534f; }
+  input { width: 100%; padding: .6rem; margin-bottom: 1.5rem; border-radius: .5rem; border: 1px solid #355; background: #142219; color: inherit; box-sizing: border-box; }
+  p { color: #9fc3ad; }
+</style>
+</head>
+<body>
+<main>
+  <h1>🦎 Camaleón</h1>
+  <input id="token" type="password" placeholder="Token de acceso (LLAMADA_TOKEN)" autocomplete="off">
+  <button id="boton">Hablar</button>
+  <p id="estado">Toca "Hablar" y permite el micrófono.</p>
+  <audio id="audio" autoplay></audio>
+</main>
+<script>
+// Llamada desde el navegador: WebRTC con el servicio de voz (Pipecat), vía POST /llamada/offer.
+const $ = (id) => document.getElementById(id);
+const token = $("token");
+token.value = new URLSearchParams(location.search).get("token") || localStorage.getItem("llamada_token") || "";
+let pc = null;
+
+function colgar() {
+  pc?.getSenders().forEach((s) => s.track?.stop());
+  pc?.close();
+  pc = null;
+  $("boton").textContent = "Hablar";
+  $("boton").classList.remove("activa");
+}
+
+async function llamar() {
+  localStorage.setItem("llamada_token", token.value);
+  $("estado").textContent = "Conectando…";
+  pc = new RTCPeerConnection({ iceServers: [{ urls: "stun:stun.l.google.com:19302" }] });
+  const mic = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } });
+  mic.getTracks().forEach((t) => pc.addTrack(t, mic));
+  pc.ontrack = (e) => { $("audio").srcObject = e.streams[0]; };
+  pc.onconnectionstatechange = () => {
+    const estados = { connected: "En llamada. Habla con normalidad.", failed: "No se pudo conectar.", disconnected: "Llamada terminada." };
+    if (estados[pc?.connectionState]) $("estado").textContent = estados[pc.connectionState];
+    if (["failed", "disconnected", "closed"].includes(pc?.connectionState)) colgar();
+  };
+  await pc.setLocalDescription(await pc.createOffer());
+  // Sin trickle ICE: se espera a reunir los candidatos (máximo 3 s).
+  await new Promise((ok) => {
+    if (pc.iceGatheringState === "complete") return ok();
+    pc.onicegatheringstatechange = () => pc.iceGatheringState === "complete" && ok();
+    setTimeout(ok, 3000);
+  });
+  const res = await fetch("/llamada/offer", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "x-llamada-token": token.value },
+    body: JSON.stringify({ sdp: pc.localDescription.sdp, type: "offer" }),
+  });
+  if (!res.ok) throw new Error(res.status === 401 ? "Token inválido" : `Error ${res.status}`);
+  await pc.setRemoteDescription(await res.json());
+  $("boton").textContent = "Colgar";
+  $("boton").classList.add("activa");
+}
+
+$("boton").onclick = () => {
+  if (pc) return colgar();
+  llamar().catch((e) => { $("estado").textContent = e.message; colgar(); });
+};
+</script>
+</body>
+</html>

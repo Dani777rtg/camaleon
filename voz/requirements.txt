@@ -1,0 +1,6 @@
+pipecat-ai[webrtc,silero,google,deepgram,openai]==1.13.0
+fastapi
+uvicorn
+aiohttp
+python-dotenv
+tzdata

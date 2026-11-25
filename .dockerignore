@@ -1,0 +1,10 @@
+node_modules
+dist
+.env
+.env.*
+.git
+test
+voz
+referencia_voz_hackaton
+docs
+*.md

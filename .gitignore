@@ -1,0 +1,12 @@
+node_modules/
+dist/
+.env
+*.log
+tunel.log
+cloudflared.exe
+data/
+_to_delete/
+__pycache__/
+.venv/
+venv/
+WEBHOOK-ANTERIOR.txt
